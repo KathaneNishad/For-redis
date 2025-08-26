@@ -18,4 +18,6 @@ export const usernamesKey = ()=>`usernames`;
 export const itemsKey = (itemId: string) => `items#${itemId}`;
 //Sorted Set to store item views
 export const itemsByViewsKey = ()=>`items:view`;
+//Sorted Set to store item ending at time stamp
+export const itemsByEndingAtKey = ()=>`items:endingAt`;
 
