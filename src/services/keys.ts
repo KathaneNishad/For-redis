@@ -1,5 +1,7 @@
 //Note to self :: why this keys were created, for what type of set
 
+import { itemsByViews } from "./queries/items";
+
 export const pageCacheKey = (id : string) => `pagecache#${id}`;
 export const sessionKey = (sessionId:string) => `sessions#${sessionId}`;
 
@@ -14,3 +16,6 @@ export const usernamesKey = ()=>`usernames`;
 
 //Items
 export const itemsKey = (itemId: string) => `items#${itemId}`;
+//Sorted Set to store item views
+export const itemsByViewsKey = ()=>`items:view`;
+
