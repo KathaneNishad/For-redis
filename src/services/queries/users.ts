@@ -1,9 +1,30 @@
 import { client } from '$services/redis';
 import type { CreateUserAttrs } from '$services/types';
 import { genId } from '$services/utils';
-import { usernameUniqueKey, usersKey } from '$services/keys';  // 
+import { usernamesKey, usernameUniqueKey, usersKey } from '$services/keys';  // 
 
-export const getUserByUsername = async (username: string) => {};
+export const getUserByUsername = async (username: string) => {
+    // username argument to look up person ID with sorted username
+    //Sorted SET : usernamesKey()
+    //member : username   
+    //score : userId or decimalId
+    const decimalId = await client.zScore(usernamesKey(),username);
+
+    if(!decimalId){
+        throw new Error("User not found");
+    }
+
+    //Take th id and cover bake to HexaDecimal Format
+    const id = decimalId.toString(16);
+
+    //look up user hash
+    const user = await client.hGetAll(usersKey(id));
+
+    //deserialize
+    return deserialize(id, user);
+
+
+};
 
 export const getUserById = async (id: string) => {
     const user = await client.hGetAll(usersKey(id));
@@ -22,6 +43,10 @@ export const createUser = async (attrs: CreateUserAttrs) => {
     //otherwise
     await client.hSet(usersKey(id),serialize(attrs));
     await client.sAdd(usernameUniqueKey(),attrs.username);
+    await client.zAdd(usernamesKey(),{
+        value:attrs.username,
+        score: parseInt(id,16)    //parse because the sorted set takes score as Integer and genId() function will give value in a String
+    });
     return id
 };
 
