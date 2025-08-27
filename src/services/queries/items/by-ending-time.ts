@@ -1,5 +1,6 @@
-import { itemsByEndingAtKey } from "$services/keys";
+import { itemsByEndingAtKey, itemsKey } from "$services/keys";
 import { client } from "$services/redis";
+import { deserialize } from "./deserialize";
 
 export const itemsByEndingTime = async (
 	order: 'DESC' | 'ASC' = 'DESC',
@@ -19,5 +20,13 @@ export const itemsByEndingTime = async (
 
 	}
 );
-console.log(ids); // load items ids that are soonest
+	const command = ids.map((id)=>{ //ids : array of item ids
+		return client.hGetAll(itemsKey(id)); // map function to iterate through each id and get each item
+	});
+
+	const result = await Promise.all(command); // Promise to get all the command async call and store them in array result
+
+	return result.map((item,i) =>  // i is to loop through ids of item and the used in map to deserialze them one by one
+		deserialize(ids[i],item)
+	);
 };
