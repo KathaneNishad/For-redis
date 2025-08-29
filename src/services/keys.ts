@@ -20,4 +20,5 @@ export const itemsKey = (itemId: string) => `items#${itemId}`;
 export const itemsByViewsKey = ()=>`items:view`;
 //Sorted Set to store item ending at time stamp
 export const itemsByEndingAtKey = ()=>`items:endingAt`;
+export const itemViewKey = (itemId:string)=>`item${itemId}`;
 
