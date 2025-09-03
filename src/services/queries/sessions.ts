@@ -1,7 +1,6 @@
 import { client } from '$services/redis';
 import type { Session } from '$services/types';
 import { sessionKey } from '$services/keys';
-import { session } from '$app/stores';
 
 export const getSession = async (id: string) => {
     const session = await client.hGetAll(sessionKey(id));

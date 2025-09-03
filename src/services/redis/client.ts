@@ -1,4 +1,7 @@
-import { createClient, defineScript } from 'redis';
+import { incrementView } from '$services/queries/views';
+import { createClient ,defineScript} from 'redis';
+import { itemsByViewsKey, itemsKey, itemViewKey } from "$services/keys";
+
 
 const client = createClient({
 	socket: {
@@ -27,12 +30,43 @@ const client = createClient({
 			transformReply(reply: any){
 				return reply;
 			}
+		}),
+
+		incrementView: defineScript({
+			NUMBER_OF_KEYS: 3,
+			SCRIPT:`
+				local itemViewKey = KEYS[1]
+				local itemsKey = KEYS[2]
+				local itemsByViewsKey= KEYS[3]
+				local itemId = ARGV[1]
+				local userId = ARGV[2]
+
+				local inserted = redis.call('PFADD',itemViewKey,userId)
+
+				if inserted == 1 then
+					redis.call('HINCRBY', itemsKey ,'views',1)
+					redis.call('ZINCRBY', itemsByViewsKey, 1, itemId)
+				end
+			`,
+			transformArguments(itemId: string, userId: string){
+				return [
+					itemViewKey(itemId), // items:views#asd 
+					itemsKey(itemId), // items#wer
+					itemsByViewsKey(), //items:view
+					itemId, //asd
+					userId  //usd 
+				];
+
+				//EVALSHA <SCRIPTID> 3 items:views#asd items#wer items:view asd usd 
+			},
+			//As nothing to return
+			transformReply(){}
 		})
 	}
 });
 
 client.on('connect',async()=>{
-	await client.addOneAndStore('books:count','5');
+	await client.addOneAndStore('books:count','10');
 	const result = await client.get('books:count');
 	console.log(result);
 });
