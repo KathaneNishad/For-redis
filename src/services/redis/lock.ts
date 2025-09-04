@@ -32,7 +32,7 @@ export const withLock = async (key: string, cb: ()=>any) => { //cb is our callba
 		}
 		// Unlock the lock key (Critical)
 		finally{
-		await client.del(lockKey);
+		await client.unlock(lockKey,token);
 		}
 		
 	}

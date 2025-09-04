@@ -12,6 +12,19 @@ const client = createClient({
 
 	//Define all your scripts here
 	scripts:{
+		unlock: defineScript({
+			NUMBER_OF_KEYS: 1,
+			SCRIPT: `
+				if redis.call('GET',KEYS[1]) == ARGV[1] then
+					return redis.call('DEL',KEYS[1])
+				end
+			`,
+			transformArguments(key: string, token: string){ // token is value of the key, key:value or key:token
+				return [key, token]
+			},
+			transformReply(){}
+		}),
+
 		addOneAndStore: defineScript({
 			NUMBER_OF_KEYS: 1, //defining number of keys we are going to acess beforehand
 			SCRIPT: `
