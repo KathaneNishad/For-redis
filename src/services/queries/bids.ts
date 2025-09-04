@@ -1,16 +1,15 @@
 import { bidHistoryKey, itemsByPriceKey, itemsKey } from '$services/keys';
-import { client } from '$services/redis';
+import { client, withLock } from '$services/redis';
 import type { CreateBidAttrs, Bid } from '$services/types';
 import { DateTime } from 'luxon';
 import { getItem } from './items';
 
 export const createBid = async (attrs: CreateBidAttrs) => {
-	//create a new connection here, like isolated connection from client normal queue of execution
-	return client.executeIsolated(async (isolatedClient)=>{
-	
-		//Setup a WATCH on itemId
-		await isolatedClient.watch(itemsKey(attrs.itemId));
-		
+
+	return withLock(attrs.itemId, async()=>{
+		// Fetching the item
+		// Doing Validation
+		// Writing some Data
 		const item = await getItem(attrs.itemId); // reusing the getItem() which will serialize and deserialize the object as we need
 
 		if(!item){
@@ -25,20 +24,56 @@ export const createBid = async (attrs: CreateBidAttrs) => {
 
 		const serialized = serrializeHistory(attrs.amount, attrs.createdAt.toMillis());
 
-		return isolatedClient
-		.multi()
-		.rPush(bidHistoryKey(attrs.itemId),serialized)
-		.hSet(itemsKey(item.id),{
+		return Promise.all([
+		client.rPush(bidHistoryKey(attrs.itemId),serialized),
+		client.hSet(itemsKey(item.id),{
 				bids: item.bids + 1,
 				price:attrs.amount,
 				highestBidUserId: attrs.userId
-		})
-		.zAdd(itemsByPriceKey(),{ //update score bid
+		}),
+		client.zAdd(itemsByPriceKey(),{ //update score bid
 			value:item.id,
 			score:attrs.amount
 		})
-		.exec();
-	});
+	])
+	})
+
+	//OR
+	//Transaction based Approach
+	// //create a new connection here, like isolated connection from client normal queue of execution
+	// return client.executeIsolated(async (isolatedClient)=>{
+	
+	// 	//Setup a WATCH on itemId
+	// 	await isolatedClient.watch(itemsKey(attrs.itemId));
+		
+	// 	const item = await getItem(attrs.itemId); // reusing the getItem() which will serialize and deserialize the object as we need
+
+	// 	if(!item){
+	// 		throw new Error('Item does not exist');
+	// 	}
+	// 	if(item.price>=attrs.amount){ // compare price of item with bid price
+	// 		throw new Error('Bid is too low');
+	// 	}
+	// 	if(item.endingAt.diff(DateTime.now()).toMillis()<0){ //validates if the bid ending time is a past time now
+	// 		throw new Error('Item closed to biding');
+	// 	}
+
+	// 	const serialized = serrializeHistory(attrs.amount, attrs.createdAt.toMillis());
+
+	// 	return isolatedClient
+	// 	.multi()
+	// 	.rPush(bidHistoryKey(attrs.itemId),serialized)
+	// 	.hSet(itemsKey(item.id),{
+	// 			bids: item.bids + 1,
+	// 			price:attrs.amount,
+	// 			highestBidUserId: attrs.userId
+	// 	})
+	// 	.zAdd(itemsByPriceKey(),{ //update score bid
+	// 		value:item.id,
+	// 		score:attrs.amount
+	// 	})
+	// 	.exec();
+	// });
 	
 };
 
