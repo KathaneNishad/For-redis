@@ -4,13 +4,22 @@ import type { CreateBidAttrs, Bid } from '$services/types';
 import { DateTime } from 'luxon';
 import { getItem } from './items';
 
+const pause = (duration: number) => {
+	return new Promise((resolve) => {
+		setTimeout(resolve, duration);
+	});
+};
+
+
 export const createBid = async (attrs: CreateBidAttrs) => {
 
-	return withLock(attrs.itemId, async()=>{
+	return withLock(attrs.itemId, async(signal: any)=>{
 		// Fetching the item
 		// Doing Validation
 		// Writing some Data
 		const item = await getItem(attrs.itemId); // reusing the getItem() which will serialize and deserialize the object as we need
+
+		await pause(5000);
 
 		if(!item){
 			throw new Error('Item does not exist');
@@ -23,6 +32,10 @@ export const createBid = async (attrs: CreateBidAttrs) => {
 		}
 
 		const serialized = serrializeHistory(attrs.amount, attrs.createdAt.toMillis());
+
+		if(signal.expired){
+			throw new Error("Lock expired, cant write any more Data");
+		}
 
 		return Promise.all([
 		client.rPush(bidHistoryKey(attrs.itemId),serialized),
