@@ -1,14 +1,18 @@
 import { randomBytes } from "crypto";
 import { client } from "./client";
 
-export const withLock = async (key: string, cb: (signal: any)=>any) => { //cb is our callback function
+//cb is our callback function
+	//passing it with a proxied Redis client
+	//a signal object if the lock has been expired in between the operation
+export const withLock = async (key: string, cb: (redisClient: Client,signal: any)=>any) => { 
 	//Initialize a few variables to control retry behaviour
 	const retryDelayMs =100;
+	const timeoutMs = 2000;
 	let retries = 20;
 
 	// Generate a random value to store at the lock key
 	const token = randomBytes(6).toString('hex');
-	// Create the lock key
+	// Create the unique lock key
 	const lockKey = `lock:${key}`;
 
 	// Set up a while loop to implement retry behaviour
@@ -27,12 +31,17 @@ export const withLock = async (key: string, cb: (signal: any)=>any) => { //cb is
 		}
 		// If the set is successful, then run the callback 
 		try{
+		//signal object that the callback can check to know if the lock expired mid-operation
 		const signal = {expired: false};
 		setTimeout(() => {
 			signal.expired = true;
-		}, 2000);
-		
-		const result = await cb(signal);
+		}, timeoutMs);
+
+
+		//Wrap the client with a proxy // a proxy Redis client which will throw error after access time 
+		const proxiedClient = buildClientProxy(timeoutMs);
+
+		const result = await cb(proxiedClient,signal);
 		return result;
 		}
 		// Unlock the lock key (Critical)
@@ -48,7 +57,23 @@ export const withLock = async (key: string, cb: (signal: any)=>any) => { //cb is
 
 };
 
-const buildClientProxy = () => {};
+type Client = typeof client;
+//It wraps the Redis client in a Proxy that blocks all method calls after the lock timeout, 
+// and safely forwards property/method access before that.
+const buildClientProxy = (timeoutMs: number) => {
+	const startTime = Date.now();
+
+	const handler = {
+		get(target: Client, prop: keyof Client){ // wrapped object: client, prop :the property being accessed like set, get
+			if(Date.now() >= startTime + timeoutMs){
+				throw new Error('Lock has expired!');
+			}
+			const value = target[prop];
+			return typeof value === 'function' ? value.bind(target): value;
+		}
+	};
+	return new Proxy(client, handler) as Client; 
+};
 
 const pause = (duration: number) => {
 	return new Promise((resolve) => {

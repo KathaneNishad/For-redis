@@ -13,13 +13,12 @@ const pause = (duration: number) => {
 
 export const createBid = async (attrs: CreateBidAttrs) => {
 
-	return withLock(attrs.itemId, async(signal: any)=>{
+	return withLock(attrs.itemId, async(lockedClient: typeof client, signal: any)=>{
 		// Fetching the item
 		// Doing Validation
 		// Writing some Data
 		const item = await getItem(attrs.itemId); // reusing the getItem() which will serialize and deserialize the object as we need
 
-		await pause(5000);
 
 		if(!item){
 			throw new Error('Item does not exist');
@@ -33,18 +32,18 @@ export const createBid = async (attrs: CreateBidAttrs) => {
 
 		const serialized = serrializeHistory(attrs.amount, attrs.createdAt.toMillis());
 
-		if(signal.expired){
-			throw new Error("Lock expired, cant write any more Data");
-		}
+		// if(signal.expired){
+		// 	throw new Error("Lock expired, cant write any more Data");
+		// }
 
 		return Promise.all([
-		client.rPush(bidHistoryKey(attrs.itemId),serialized),
-		client.hSet(itemsKey(item.id),{
+		lockedClient.rPush(bidHistoryKey(attrs.itemId),serialized),
+		lockedClient.hSet(itemsKey(item.id),{
 				bids: item.bids + 1,
 				price:attrs.amount,
 				highestBidUserId: attrs.userId
 		}),
-		client.zAdd(itemsByPriceKey(),{ //update score bid
+		lockedClient.zAdd(itemsByPriceKey(),{ //update score bid
 			value:item.id,
 			score:attrs.amount
 		})
